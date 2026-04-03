@@ -1,0 +1,167 @@
+:root {
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+  color: #1a1a1a;
+  background: #f4f1ec;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+a {
+  color: #0d5c3d;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+.layout {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #0d5c3d;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #0d5c3d;
+}
+
+.nav-links {
+  display: flex;
+  gap: 1rem;
+}
+
+.card {
+  background: #fff;
+  border-radius: 10px;
+  padding: 1.25rem 1.5rem;
+  box-shadow: 0 2px 12px rgba(13, 92, 61, 0.08);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.65rem 0.5rem;
+  border-bottom: 1px solid #e8e4dd;
+}
+
+th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #5c5850;
+}
+
+tr:last-child td {
+  border-bottom: none;
+}
+
+form label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+  color: #3d3a35;
+}
+
+form input {
+  width: 100%;
+  max-width: 320px;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid #cfc8bc;
+  border-radius: 6px;
+  font-size: 1rem;
+  margin-bottom: 1rem;
+}
+
+form input:focus {
+  outline: 2px solid #0d5c3d;
+  outline-offset: 1px;
+  border-color: #0d5c3d;
+}
+
+.btn {
+  display: inline-block;
+  padding: 0.55rem 1.1rem;
+  background: #0d5c3d;
+  color: #fff !important;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none !important;
+}
+
+.btn:hover {
+  background: #0a4830;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: #fff;
+  color: #0d5c3d !important;
+  border: 2px solid #0d5c3d;
+}
+
+.btn-secondary:hover {
+  background: #eef7f2;
+}
+
+.error {
+  color: #b00020;
+  font-size: 0.9rem;
+  margin: 0 0 1rem;
+}
+
+.muted {
+  color: #6b6560;
+  font-size: 0.9rem;
+}
+
+.badge {
+  display: inline-block;
+  background: #eef7f2;
+  color: #0d5c3d;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-right: 0.35rem;
+  margin-bottom: 0.35rem;
+}
+
+ul.segments {
+  margin: 0.5rem 0 0;
+  padding-left: 1.2rem;
+}
