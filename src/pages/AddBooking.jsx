@@ -49,8 +49,9 @@ export default function AddBooking() {
       </p>
       <h2 style={{ marginTop: '0.5rem' }}>Add booking</h2>
       <p className="muted">
-        Enter the participant&apos;s details. Shares are assigned automatically across cows (7
-        shares per cow, cows numbered from 1).
+        Enter the participant&apos;s details. Up to 7 shares stay on one cow; if your count does
+        not fit the free slots on the earliest partial cow, the next cow is used and the leftover
+        slots are filled by later bookings. Cows are numbered from 1.
       </p>
       {error && <p className="error">{error}</p>}
       <form onSubmit={handleSubmit}>

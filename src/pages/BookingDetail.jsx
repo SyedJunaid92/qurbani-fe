@@ -70,7 +70,8 @@ export default function BookingDetail() {
       </p>
       <h3 style={{ marginBottom: '0.5rem' }}>Cow & share allocation</h3>
       <p className="muted" style={{ marginTop: 0 }}>
-        Each cow has 7 shares. Cow numbers start at 1. Exact share numbers are stored on the booking.
+        Each cow has 7 shares; cow numbers start at 1. Bookings use the next cow that fits the full
+        requested block (or split into blocks of up to 7). Exact share numbers are stored on the booking.
       </p>
       <ul className="segments">
         {(booking.allocations || []).map((seg, i) => (
