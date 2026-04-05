@@ -2,7 +2,10 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { fetchBookings } from "../api/client.js";
 import { useAuth } from "../context/AuthContext.jsx";
-import { digitsForWhatsApp, whatsAppDigitsHint } from "../utils/whatsappPhone.js";
+import {
+  digitsForWhatsApp,
+  whatsAppDigitsHint,
+} from "../utils/whatsappPhone.js";
 
 function formatDate(iso) {
   if (!iso) return "—";
@@ -108,7 +111,9 @@ async function copyWhatsAppMessage(booking) {
   const body = buildWhatsAppMessage(booking);
   try {
     await navigator.clipboard.writeText(body);
-    window.alert("Message copied. Open WhatsApp on your phone, find this contact, and paste.");
+    window.alert(
+      "Message copied. Open WhatsApp on your phone, find this contact, and paste.",
+    );
   } catch {
     try {
       const ta = document.createElement("textarea");
@@ -121,7 +126,9 @@ async function copyWhatsAppMessage(booking) {
       document.body.removeChild(ta);
       window.alert("Message copied. Paste it in WhatsApp on your phone.");
     } catch {
-      window.alert("Could not copy automatically. Select and copy the text manually if needed.");
+      window.alert(
+        "Could not copy automatically. Select and copy the text manually if needed.",
+      );
     }
   }
 }
@@ -184,15 +191,7 @@ export default function BookingsList() {
       <p className="list-hint muted">
         {isAdmin ? "Showing all bookings." : "Showing bookings you created."}
       </p>
-      {isAdmin && (
-        <p className="list-hint muted wa-fallback-hint">
-          Use <strong>Open app</strong> if WhatsApp is installed (Mac/Windows/iPhone/Android). Use{" "}
-          <strong>Web</strong> only if you rely on the browser; if the page is blank, use{" "}
-          <strong>Copy message</strong>. Local numbers starting with <strong>0</strong> need{" "}
-          <code>VITE_DEFAULT_CALLING_CODE</code> in <code>.env</code> (e.g. <code>92</code> for
-          Pakistan).
-        </p>
-      )}
+
       <div className="table-wrap">
         <table>
           <thead>
