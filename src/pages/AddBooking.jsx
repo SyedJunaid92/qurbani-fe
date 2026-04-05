@@ -43,7 +43,7 @@ export default function AddBooking() {
   }
 
   return (
-    <div className="card" style={{ maxWidth: 420 }}>
+    <div className="card form-card">
       <p>
         <Link to="/">← All bookings</Link>
       </p>

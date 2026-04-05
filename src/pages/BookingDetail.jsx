@@ -63,6 +63,10 @@ export default function BookingDetail() {
       <p>
         <strong>Total shares:</strong> {booking.shares}
       </p>
+      <p>
+        <strong>Recorded by:</strong>{' '}
+        {booking.created_by?.name || booking.created_by?.email || '—'}
+      </p>
       <p className="muted">
         <strong>Created:</strong> {formatDate(booking.created_at)}
         <br />
