@@ -89,6 +89,28 @@ export function updateBookingShareDetails(id, shareParticipantDetails) {
   });
 }
 
+export function fetchAllocationOptions(id) {
+  return request(`/bookings/${id}/allocation-options`);
+}
+
+export function updateBookingAllocationDetails(id, body) {
+  return request(`/bookings/${id}/allocation-details`, {
+    method: 'PATCH',
+    body: JSON.stringify(body)
+  });
+}
+
+export function patchBooking(id, body) {
+  return request(`/bookings/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body)
+  });
+}
+
+export function deleteBooking(id) {
+  return request(`/bookings/${id}`, { method: 'DELETE' });
+}
+
 export function createBooking(body) {
   return request('/bookings', { method: 'POST', body: JSON.stringify(body) });
 }

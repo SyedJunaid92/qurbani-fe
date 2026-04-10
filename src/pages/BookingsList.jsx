@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { Link } from "react-router-dom";
-import { fetchBookings } from "../api/client.js";
+import ConfirmModal from "../components/ConfirmModal.jsx";
+import { deleteBooking, fetchBookings } from "../api/client.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import {
   digitsForWhatsApp,
@@ -187,6 +188,26 @@ export default function BookingsList() {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+  const [deleteModal, setDeleteModal] = useState(null);
+
+  const deleteModalBusy =
+    Boolean(deleteModal) && deletingId === deleteModal._id;
+
+  async function executeListDelete() {
+    if (!deleteModal) return;
+    setDeletingId(deleteModal._id);
+    try {
+      await deleteBooking(deleteModal._id);
+      setBookings((prev) => prev.filter((x) => x._id !== deleteModal._id));
+      setDeleteModal(null);
+      toast.success("Booking deleted");
+    } catch (e) {
+      toast.error(e.message || "Could not delete");
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -240,6 +261,22 @@ export default function BookingsList() {
 
   return (
     <div className="card">
+      <ConfirmModal
+        open={deleteModal != null}
+        title="Delete this booking?"
+        confirmLabel="Delete booking"
+        cancelLabel="Keep booking"
+        danger
+        busy={deleteModalBusy}
+        onClose={() => !deleteModalBusy && setDeleteModal(null)}
+        onConfirm={executeListDelete}
+      >
+        <p>
+          This will permanently remove the booking for{" "}
+          <strong>{deleteModal?.name}</strong> and free all cow/share slots. This cannot be
+          undone.
+        </p>
+      </ConfirmModal>
       <p className="list-hint muted">
         {isAdmin ? "Showing all bookings." : "Showing bookings you created."}
       </p>
@@ -255,7 +292,8 @@ export default function BookingsList() {
               <th>Recorded by</th>
               <th>Booked</th>
               {isAdmin && <th>WhatsApp</th>}
-              <th />
+              <th>Slots</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -294,10 +332,25 @@ export default function BookingsList() {
                     </div>
                   </td>
                 )}
-                <td data-label="">
+                <td data-label="Slots">
                   <Link to={`/bookings/${b._id}`} className="table-action">
-                    Details
+                    Edit cow / share
                   </Link>
+                </td>
+                <td data-label="Actions">
+                  <div className="table-row-actions">
+                    <Link to={`/bookings/${b._id}`} className="table-action">
+                      Details
+                    </Link>
+                    <button
+                      type="button"
+                      className="btn btn--small btn--danger"
+                      disabled={deletingId === b._id}
+                      onClick={() => setDeleteModal({ _id: b._id, name: b.name })}
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
