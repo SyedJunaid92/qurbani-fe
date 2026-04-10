@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 import { Link } from 'react-router-dom';
 import { createAdminUser, fetchAdminUsers } from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -24,7 +25,10 @@ export default function AdminUsers() {
         const data = await fetchAdminUsers();
         if (!cancelled) setUsers(data);
       } catch (e) {
-        if (!cancelled) setError(e.message);
+        if (!cancelled) {
+          setError(e.message);
+          toast.error(e.message || 'Could not load users');
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -49,6 +53,7 @@ export default function AdminUsers() {
     setSaving(true);
     try {
       await createAdminUser({ email, name, password, role });
+      toast.success('User created');
       const data = await fetchAdminUsers();
       setUsers(data);
       setEmail('');
@@ -56,7 +61,9 @@ export default function AdminUsers() {
       setPassword('');
       setRole('staff');
     } catch (err) {
-      setFormError(err.message);
+      const msg = err.message || 'Could not create user';
+      setFormError(msg);
+      toast.error(msg);
     } finally {
       setSaving(false);
     }

@@ -82,6 +82,13 @@ export function fetchBooking(id) {
   return request(`/bookings/${id}`);
 }
 
+export function updateBookingShareDetails(id, shareParticipantDetails) {
+  return request(`/bookings/${id}/share-details`, {
+    method: 'PATCH',
+    body: JSON.stringify({ shareParticipantDetails })
+  });
+}
+
 export function createBooking(body) {
   return request('/bookings', { method: 'POST', body: JSON.stringify(body) });
 }

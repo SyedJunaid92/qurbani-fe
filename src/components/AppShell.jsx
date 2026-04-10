@@ -1,8 +1,14 @@
+import toast from 'react-hot-toast';
 import { Link, NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 
 export default function AppShell() {
   const { user, logout, isAdmin } = useAuth();
+
+  function handleLogout() {
+    logout();
+    toast.success('Signed out');
+  }
 
   return (
     <div className="layout">
@@ -45,7 +51,7 @@ export default function AppShell() {
           <span className="user-pill" title={user?.email}>
             {user?.name}
           </span>
-          <button type="button" className="btn btn--small btn-secondary" onClick={logout}>
+          <button type="button" className="btn btn--small btn-secondary" onClick={handleLogout}>
             Log out
           </button>
         </div>

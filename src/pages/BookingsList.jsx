@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 import { Link } from "react-router-dom";
 import { fetchBookings } from "../api/client.js";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -118,9 +119,10 @@ function getWhatsAppPayload(booking) {
   return { phone, encoded };
 }
 
-function alertBadPhone() {
-  window.alert(
-    `This number could not be used for WhatsApp links.\n\n${whatsAppDigitsHint()}`,
+function toastBadPhone() {
+  toast.error(
+    `This number could not be used for WhatsApp. ${whatsAppDigitsHint()}`,
+    { duration: 7000 },
   );
 }
 
@@ -128,7 +130,7 @@ function alertBadPhone() {
 function openWhatsAppNative(booking) {
   const p = getWhatsAppPayload(booking);
   if (!p) {
-    alertBadPhone();
+    toastBadPhone();
     return;
   }
   const url = `whatsapp://send?phone=${p.phone}&text=${p.encoded}`;
@@ -145,7 +147,7 @@ function openWhatsAppNative(booking) {
 function openWhatsAppWeb(booking) {
   const p = getWhatsAppPayload(booking);
   if (!p) {
-    alertBadPhone();
+    toastBadPhone();
     return;
   }
   const url = `https://api.whatsapp.com/send?phone=${p.phone}&text=${p.encoded}`;
@@ -162,9 +164,7 @@ async function copyWhatsAppMessage(booking) {
   const body = buildWhatsAppMessage(booking);
   try {
     await navigator.clipboard.writeText(body);
-    window.alert(
-      "Message copied. Open WhatsApp on your phone, find this contact, and paste.",
-    );
+    toast.success("Message copied — paste it in WhatsApp for this contact.");
   } catch {
     try {
       const ta = document.createElement("textarea");
@@ -175,11 +175,9 @@ async function copyWhatsAppMessage(booking) {
       ta.select();
       document.execCommand("copy");
       document.body.removeChild(ta);
-      window.alert("Message copied. Paste it in WhatsApp on your phone.");
+      toast.success("Message copied — paste it in WhatsApp for this contact.");
     } catch {
-      window.alert(
-        "Could not copy automatically. Select and copy the text manually if needed.",
-      );
+      toast.error("Could not copy. Select the text manually if needed.");
     }
   }
 }
@@ -197,7 +195,10 @@ export default function BookingsList() {
         const data = await fetchBookings();
         if (!cancelled) setBookings(data);
       } catch (e) {
-        if (!cancelled) setError(e.message);
+        if (!cancelled) {
+          setError(e.message);
+          toast.error(e.message || "Could not load bookings");
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }

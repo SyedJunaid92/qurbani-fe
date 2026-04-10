@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import toast from 'react-hot-toast';
 import { Link, useNavigate } from 'react-router-dom';
 import { createBooking } from '../api/client.js';
 
@@ -15,15 +16,21 @@ export default function AddBooking() {
     setError(null);
     const shareNum = parseInt(shares, 10);
     if (!name.trim()) {
-      setError('Name is required');
+      const msg = 'Name is required';
+      setError(msg);
+      toast.error(msg);
       return;
     }
     if (!contact.trim()) {
-      setError('Phone number is required');
+      const msg = 'Phone number is required';
+      setError(msg);
+      toast.error(msg);
       return;
     }
     if (!Number.isInteger(shareNum) || shareNum < 1) {
-      setError('Shares must be a whole number of at least 1');
+      const msg = 'Shares must be a whole number of at least 1';
+      setError(msg);
+      toast.error(msg);
       return;
     }
 
@@ -34,9 +41,11 @@ export default function AddBooking() {
         contact: contact.trim(),
         shares: shareNum
       });
+      toast.success('Booking created');
       navigate(`/bookings/${created._id}`);
     } catch (err) {
       setError(err.message);
+      toast.error(err.message || 'Could not create booking');
     } finally {
       setSubmitting(false);
     }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 import { Link, useParams } from 'react-router-dom';
-import { fetchBooking } from '../api/client.js';
+import { fetchBooking, updateBookingShareDetails } from '../api/client.js';
 
 function formatDate(iso) {
   if (!iso) return '—';
@@ -11,20 +12,46 @@ function formatDate(iso) {
   }
 }
 
+function buildShareRows(booking) {
+  const assignments = booking.cowShareAssignments || [];
+  const details = booking.shareParticipantDetails || [];
+  return assignments.map((a) => {
+    const d = details.find(
+      (x) => x.cowNumber === a.cowNumber && x.shareNumber === a.shareNumber
+    );
+    return {
+      cowNumber: a.cowNumber,
+      shareNumber: a.shareNumber,
+      name: d?.name ?? '',
+      contact: d?.contact ?? '',
+      address: d?.address ?? ''
+    };
+  });
+}
+
 export default function BookingDetail() {
   const { id } = useParams();
   const [booking, setBooking] = useState(null);
+  const [shareRows, setShareRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [saveError, setSaveError] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const data = await fetchBooking(id);
-        if (!cancelled) setBooking(data);
+        if (!cancelled) {
+          setBooking(data);
+          setShareRows(buildShareRows(data));
+        }
       } catch (e) {
-        if (!cancelled) setError(e.message);
+        if (!cancelled) {
+          setError(e.message);
+          toast.error(e.message || 'Could not load booking');
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -33,6 +60,30 @@ export default function BookingDetail() {
       cancelled = true;
     };
   }, [id]);
+
+  function updateRow(index, field, value) {
+    setShareRows((rows) =>
+      rows.map((row, i) => (i === index ? { ...row, [field]: value } : row))
+    );
+  }
+
+  async function handleSaveShares(e) {
+    e.preventDefault();
+    setSaveError(null);
+    setSaving(true);
+    try {
+      const updated = await updateBookingShareDetails(id, shareRows);
+      setBooking(updated);
+      setShareRows(buildShareRows(updated));
+      toast.success('Share details saved');
+    } catch (err) {
+      const msg = err.message || 'Could not save';
+      setSaveError(msg);
+      toast.error(msg);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -52,13 +103,13 @@ export default function BookingDetail() {
   }
 
   return (
-    <div className="card">
+    <div className="card booking-detail">
       <p>
         <Link to="/">← All bookings</Link>
       </p>
-      <h2 style={{ marginTop: '0.5rem' }}>{booking.name}</h2>
+      <h2 className="booking-detail__title">{booking.name}</h2>
       <p>
-        <strong>Phone:</strong> {booking.contact}
+        <strong>Booking contact:</strong> {booking.contact}
       </p>
       <p>
         <strong>Total shares:</strong> {booking.shares}
@@ -72,10 +123,11 @@ export default function BookingDetail() {
         <br />
         <strong>Updated:</strong> {formatDate(booking.updated_at)}
       </p>
-      <h3 style={{ marginBottom: '0.5rem' }}>Cow & share allocation</h3>
-      <p className="muted" style={{ marginTop: 0 }}>
-        Each cow has 7 shares; cow numbers start at 1. Bookings use the next cow that fits the full
-        requested block (or split into blocks of up to 7). Exact share numbers are stored on the booking.
+
+      <h3 className="booking-detail__section-title">Cow & share allocation</h3>
+      <p className="muted booking-detail__section-intro">
+        Each cow has 7 shares; cow numbers start at 1. Below, add the participant for each share
+        slot (name, contact, address).
       </p>
       <ul className="segments">
         {(booking.allocations || []).map((seg, i) => (
@@ -89,25 +141,68 @@ export default function BookingDetail() {
             {seg.shareCount != null && (
               <>
                 {' '}
-                (<strong>{seg.shareCount}</strong> share{seg.shareCount !== 1 ? 's' : ''} on this cow)
+                (<strong>{seg.shareCount}</strong> share{seg.shareCount !== 1 ? 's' : ''} on this
+                cow)
               </>
             )}
           </li>
         ))}
       </ul>
-      {(booking.cowShareAssignments || []).length > 0 && (
-        <>
-          <h4 style={{ marginBottom: '0.35rem' }}>Full list (cow → share)</h4>
-          <p className="muted" style={{ marginTop: 0, fontSize: '0.85rem' }}>
-            {booking.cowShareAssignments.map((a, i) => (
-              <span key={i} className="badge">
-                Cow {a.cowNumber} · share {a.shareNumber}
-              </span>
+
+      {shareRows.length > 0 && (
+        <form className="share-slots-form" onSubmit={handleSaveShares}>
+          <h3 className="booking-detail__section-title">Details per share</h3>
+          {saveError && <p className="error">{saveError}</p>}
+          <div className="share-slots-list">
+            {shareRows.map((row, index) => (
+              <fieldset key={`${row.cowNumber}-${row.shareNumber}`} className="share-slot">
+                <legend className="share-slot__legend">
+                  Cow {row.cowNumber} · share {row.shareNumber}
+                </legend>
+                <div className="share-slot__fields">
+                  <div className="form-field">
+                    <label htmlFor={`sn-${index}`}>Name</label>
+                    <input
+                      id={`sn-${index}`}
+                      value={row.name}
+                      onChange={(e) => updateRow(index, 'name', e.target.value)}
+                      autoComplete="name"
+                    />
+                  </div>
+                  <div className="form-field">
+                    <label htmlFor={`sc-${index}`}>Contact</label>
+                    <input
+                      id={`sc-${index}`}
+                      type="tel"
+                      value={row.contact}
+                      onChange={(e) => updateRow(index, 'contact', e.target.value)}
+                      autoComplete="tel"
+                    />
+                  </div>
+                  <div className="form-field form-field--full">
+                    <label htmlFor={`sa-${index}`}>Address</label>
+                    <textarea
+                      id={`sa-${index}`}
+                      className="input-textarea"
+                      rows={2}
+                      value={row.address}
+                      onChange={(e) => updateRow(index, 'address', e.target.value)}
+                      autoComplete="street-address"
+                    />
+                  </div>
+                </div>
+              </fieldset>
             ))}
-          </p>
-        </>
+          </div>
+          <div className="share-slots-actions">
+            <button type="submit" className="btn" disabled={saving}>
+              {saving ? 'Saving…' : 'Save share details'}
+            </button>
+          </div>
+        </form>
       )}
-      <p style={{ marginTop: '1.5rem' }}>
+
+      <p className="booking-detail__footer-actions">
         <Link to="/new" className="btn">
           Add another booking
         </Link>
