@@ -35,17 +35,41 @@ function recordedByLabel(booking) {
   return "—";
 }
 
+function envStr(key) {
+  const v = import.meta.env[key];
+  return typeof v === "string" && v.trim() ? v.trim() : "";
+}
+
+function eidContactLines() {
+  const out = [];
+  for (let i = 1; i <= 3; i += 1) {
+    const name = envStr(`VITE_CONTACT_NAME_${i}`);
+    const num = envStr(`VITE_CONTACT_NUMBER_${i}`);
+    if (name && num) out.push(`• ${name}: ${num}`);
+    else if (num) out.push(`• ${num}`);
+    else if (name) out.push(`• ${name}`);
+  }
+  return out;
+}
+
 function buildWhatsAppMessage(booking) {
+  const bankTitle = envStr("VITE_BANK_ACCOUNT_NAME");
+  const bankName = envStr("VITE_BANK_NAME");
+  const accountNo = envStr("VITE_BANK_ACCOUNT_NUMBER");
+  const hasBank = Boolean(bankTitle || bankName || accountNo);
+  const contacts = eidContactLines();
+
   const lines = [
     `Salam ${booking.name},`,
     "",
-    "Here are your Qurbani booking details:",
+    "Please find your Qurbani booking summary below.",
+    "",
     `Total shares: ${booking.shares}`,
     "",
   ];
   const segs = booking.allocations ?? [];
   if (segs.length) {
-    lines.push("Cow & share allocation:");
+    lines.push("Cow and share allocation:");
     for (const seg of segs) {
       const nums =
         Array.isArray(seg.shareNumbers) && seg.shareNumbers.length
@@ -53,9 +77,36 @@ function buildWhatsAppMessage(booking) {
           : `${seg.fromShare}–${seg.toShare}`;
       lines.push(`• Cow ${seg.cowNumber}: share(s) ${nums}`);
     }
+    lines.push("");
   }
+
+  lines.push(
+    "Please share the full name, contact number, and residential address for each share holder (for every share in this booking).",
+  );
   lines.push("");
-  lines.push("Thank you for trusting us with your Qurbani.");
+
+  if (hasBank) {
+    lines.push("Payment details");
+    lines.push(
+      "Kindly transfer your payment to the following bank account. When you have paid, you may share the transfer receipt with us for our records.",
+    );
+    lines.push("");
+    if (bankTitle) lines.push(`Account title: ${bankTitle}`);
+    if (bankName) lines.push(`Bank: ${bankName}`);
+    if (accountNo) lines.push(`Account number / IBAN: ${accountNo}`);
+    lines.push("");
+  }
+
+  if (contacts.length) {
+    lines.push(
+      "On Eid day, for pickup, timing, or any urgent queries, please contact one of the numbers below.",
+    );
+    lines.push("");
+    lines.push(...contacts);
+    lines.push("");
+  }
+
+  lines.push("Thank you for entrusting us with your Qurbani.");
   return lines.join("\n");
 }
 
