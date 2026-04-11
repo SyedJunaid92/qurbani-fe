@@ -55,6 +55,7 @@ function eidContactLines() {
 }
 
 function buildWhatsAppMessage(booking) {
+  const perSharePrice = envStr("VITE_PER_SHARE_PRICE");
   const bankTitle = envStr("VITE_BANK_ACCOUNT_NAME");
   const bankName = envStr("VITE_BANK_NAME");
   const accountNo = envStr("VITE_BANK_ACCOUNT_NUMBER");
@@ -89,6 +90,8 @@ function buildWhatsAppMessage(booking) {
 
   if (hasBank) {
     lines.push("Payment details");
+    lines.push(`Per share price: ${perSharePrice}`);
+    lines.push(`Total price: ${perSharePrice * booking.shares}`);
     lines.push(
       "Kindly transfer your payment to the following bank account. When you have paid, you may share the transfer receipt with us for our records.",
     );
@@ -273,8 +276,8 @@ export default function BookingsList() {
       >
         <p>
           This will permanently remove the booking for{" "}
-          <strong>{deleteModal?.name}</strong> and free all cow/share slots. This cannot be
-          undone.
+          <strong>{deleteModal?.name}</strong> and free all cow/share slots.
+          This cannot be undone.
         </p>
       </ConfirmModal>
       <p className="list-hint muted">
@@ -346,7 +349,9 @@ export default function BookingsList() {
                       type="button"
                       className="btn btn--small btn--danger"
                       disabled={deletingId === b._id}
-                      onClick={() => setDeleteModal({ _id: b._id, name: b.name })}
+                      onClick={() =>
+                        setDeleteModal({ _id: b._id, name: b.name })
+                      }
                     >
                       Delete
                     </button>
