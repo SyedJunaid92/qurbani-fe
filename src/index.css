@@ -916,3 +916,64 @@ ul.segments {
   min-width: 6rem;
   text-align: center;
 }
+
+/* Payment status */
+.payment-badge {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.payment-badge--paid {
+  background: #e6f4ea;
+  color: #1e6f3e;
+  border: 1px solid #b8dfc4;
+}
+
+.payment-badge--pending {
+  background: #fff4e5;
+  color: #9a5b00;
+  border: 1px solid #f0d4a8;
+}
+
+.payment-badge--partial {
+  background: #e8eef7;
+  color: #2d4a7c;
+  border: 1px solid #c5d4eb;
+}
+
+.booking-detail__payment-summary {
+  margin: 0.35rem 0 0.75rem;
+}
+
+.booking-detail__payment-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.88rem;
+}
+
+.share-slot__payment {
+  margin-top: 0.35rem;
+  padding-top: 0.65rem;
+  border-top: 1px dashed #e0dbd2;
+}
+
+.share-slot__payment-label {
+  display: block;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #5c5850;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+
+.share-slot__payment-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}

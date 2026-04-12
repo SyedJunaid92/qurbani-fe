@@ -74,8 +74,10 @@ export async function loginRequest(email, password) {
   return data;
 }
 
+const PAYMENT_FILTER_ALL = ['pending', 'partial', 'paid'];
+
 /**
- * @param {{ page?: number, limit?: number, name?: string, contact?: string, cows?: number[] }} params
+ * @param {{ page?: number, limit?: number, name?: string, contact?: string, cows?: number[], payments?: string[] }} params
  */
 export function fetchBookings(params = {}) {
   const q = new URLSearchParams();
@@ -89,6 +91,13 @@ export function fetchBookings(params = {}) {
   }
   if (Array.isArray(params.cows) && params.cows.length > 0) {
     q.set('cows', [...new Set(params.cows.map(Number).filter((n) => Number.isInteger(n) && n >= 1))].join(','));
+  }
+  if (Array.isArray(params.payments) && params.payments.length > 0) {
+    const allowed = new Set(PAYMENT_FILTER_ALL);
+    const picked = [...new Set(params.payments.map((s) => String(s).toLowerCase()).filter((s) => allowed.has(s)))];
+    if (picked.length > 0 && picked.length < PAYMENT_FILTER_ALL.length) {
+      q.set('payments', picked.join(','));
+    }
   }
   const qs = q.toString();
   return request(`/bookings${qs ? `?${qs}` : ''}`);
@@ -115,6 +124,13 @@ export function fetchAllocationOptions(id) {
 
 export function updateBookingAllocationDetails(id, body) {
   return request(`/bookings/${id}/allocation-details`, {
+    method: 'PATCH',
+    body: JSON.stringify(body)
+  });
+}
+
+export function patchSharePayment(id, body) {
+  return request(`/bookings/${id}/share-payment`, {
     method: 'PATCH',
     body: JSON.stringify(body)
   });

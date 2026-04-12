@@ -24,6 +24,12 @@ import {
 const LIMIT_OPTIONS = [10, 20, 30, 50];
 const DEBOUNCE_MS = 350;
 
+const PAYMENT_FILTER_OPTIONS = [
+  { value: "pending", label: "Pending" },
+  { value: "partial", label: "Partial" },
+  { value: "paid", label: "Paid" },
+];
+
 function formatDate(iso) {
   if (!iso) return "—";
   try {
@@ -49,6 +55,12 @@ function recordedByLabel(booking) {
   if (!c) return "—";
   if (typeof c === "object") return c.name || c.email || "—";
   return "—";
+}
+
+function paymentStatusLabel(status) {
+  if (status === "paid") return "Paid";
+  if (status === "partial") return "Partial";
+  return "Pending";
 }
 
 function envStr(key) {
@@ -198,6 +210,91 @@ async function copyWhatsAppMessage(booking) {
   }
 }
 
+function PaymentMultiSelect({
+  value,
+  onChange,
+  open,
+  onOpenChange,
+  containerRef,
+}) {
+  const toggle = (v) => {
+    const set = new Set(value);
+    if (set.has(v)) set.delete(v);
+    else set.add(v);
+    const order = PAYMENT_FILTER_OPTIONS.map((o) => o.value);
+    onChange(order.filter((x) => set.has(x)));
+  };
+
+  const summary =
+    value.length === 0
+      ? "All statuses"
+      : value.length === PAYMENT_FILTER_OPTIONS.length
+        ? "All statuses"
+        : value.length <= 2
+          ? value
+              .map(
+                (v) => PAYMENT_FILTER_OPTIONS.find((o) => o.value === v)?.label ?? v,
+              )
+              .join(", ")
+          : `${value.length} selected`;
+
+  return (
+    <div className="bookings-field bookings-field--cow" ref={containerRef}>
+      <label>Payment</label>
+      <div className="cow-multi">
+        <button
+          type="button"
+          className={`cow-multi__trigger ${open ? "cow-multi__trigger--open" : ""}`}
+          aria-expanded={open}
+          aria-haspopup="listbox"
+          onClick={() => onOpenChange(!open)}
+        >
+          <span className="cow-multi__trigger-text">{summary}</span>
+          <span className="cow-multi__chev" aria-hidden>
+            ▾
+          </span>
+        </button>
+        {open && (
+          <div className="cow-multi__panel" role="listbox">
+            <div className="cow-multi__actions">
+              <button
+                type="button"
+                className="cow-multi__link"
+                onClick={() =>
+                  onChange(PAYMENT_FILTER_OPTIONS.map((o) => o.value))
+                }
+              >
+                Select all
+              </button>
+              <button
+                type="button"
+                className="cow-multi__link"
+                onClick={() => onChange([])}
+              >
+                Clear (all)
+              </button>
+            </div>
+            <ul className="cow-multi__list">
+              {PAYMENT_FILTER_OPTIONS.map((o) => (
+                <li key={o.value}>
+                  <label className="cow-multi__row">
+                    <input
+                      type="checkbox"
+                      checked={value.includes(o.value)}
+                      onChange={() => toggle(o.value)}
+                    />
+                    <span>{o.label}</span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function CowMultiSelect({
   options,
   value,
@@ -294,12 +391,19 @@ export default function BookingsList() {
   const [cowOptions, setCowOptions] = useState([]);
   const [cowPopoverOpen, setCowPopoverOpen] = useState(false);
   const cowWrapRef = useRef(null);
+  const [selectedPayments, setSelectedPayments] = useState([]);
+  const [paymentPopoverOpen, setPaymentPopoverOpen] = useState(false);
+  const paymentWrapRef = useRef(null);
 
   const debouncedName = useDebounce(nameInput, DEBOUNCE_MS);
   const debouncedContact = useDebounce(contactInput, DEBOUNCE_MS);
   const cowsKey = useMemo(
     () => selectedCows.slice().sort((a, b) => a - b).join(","),
     [selectedCows],
+  );
+  const paymentsKey = useMemo(
+    () => selectedPayments.slice().sort().join(","),
+    [selectedPayments],
   );
 
   const [loading, setLoading] = useState(true);
@@ -313,7 +417,7 @@ export default function BookingsList() {
 
   useLayoutEffect(() => {
     setPage(1);
-  }, [debouncedName, debouncedContact, cowsKey]);
+  }, [debouncedName, debouncedContact, cowsKey, paymentsKey]);
 
   const loadBookings = useCallback(async () => {
     setRefreshing(true);
@@ -325,6 +429,7 @@ export default function BookingsList() {
         name: debouncedName,
         contact: debouncedContact,
         cows: selectedCows,
+        payments: selectedPayments,
       });
       setBookings(res.data ?? []);
       setTotal(res.total ?? 0);
@@ -337,7 +442,7 @@ export default function BookingsList() {
       setRefreshing(false);
       setLoading(false);
     }
-  }, [page, limit, debouncedName, debouncedContact, selectedCows]);
+  }, [page, limit, debouncedName, debouncedContact, selectedCows, selectedPayments]);
 
   useEffect(() => {
     loadBookings();
@@ -360,13 +465,18 @@ export default function BookingsList() {
 
   useEffect(() => {
     function onDocMouseDown(e) {
-      if (!cowPopoverOpen) return;
-      const el = cowWrapRef.current;
-      if (el && !el.contains(e.target)) setCowPopoverOpen(false);
+      if (cowPopoverOpen) {
+        const el = cowWrapRef.current;
+        if (el && !el.contains(e.target)) setCowPopoverOpen(false);
+      }
+      if (paymentPopoverOpen) {
+        const el = paymentWrapRef.current;
+        if (el && !el.contains(e.target)) setPaymentPopoverOpen(false);
+      }
     }
     document.addEventListener("mousedown", onDocMouseDown);
     return () => document.removeEventListener("mousedown", onDocMouseDown);
-  }, [cowPopoverOpen]);
+  }, [cowPopoverOpen, paymentPopoverOpen]);
 
   async function executeListDelete() {
     if (!deleteModal) return;
@@ -383,10 +493,15 @@ export default function BookingsList() {
     }
   }
 
+  const paymentFilterActive =
+    selectedPayments.length > 0 &&
+    selectedPayments.length < PAYMENT_FILTER_OPTIONS.length;
+
   const hasActiveFilters =
     debouncedName.trim() !== "" ||
     debouncedContact.trim() !== "" ||
-    selectedCows.length > 0;
+    selectedCows.length > 0 ||
+    paymentFilterActive;
 
   const fromIdx = total === 0 ? 0 : (page - 1) * limit + 1;
   const toIdx = total === 0 ? 0 : Math.min(page * limit, total);
@@ -463,6 +578,13 @@ export default function BookingsList() {
             onOpenChange={setCowPopoverOpen}
             containerRef={cowWrapRef}
           />
+          <PaymentMultiSelect
+            value={selectedPayments}
+            onChange={setSelectedPayments}
+            open={paymentPopoverOpen}
+            onOpenChange={setPaymentPopoverOpen}
+            containerRef={paymentWrapRef}
+          />
         </div>
         <div className="bookings-toolbar__size">
           <label htmlFor="page-size">Rows per page</label>
@@ -497,8 +619,8 @@ export default function BookingsList() {
             <>
               <p>No bookings match your filters.</p>
               <p className="muted">
-                Try adjusting name, contact, or cow filters — search updates as
-                you type.
+                Try adjusting name, contact, cow, or payment filters — search updates
+                as you type.
               </p>
             </>
           ) : (
@@ -520,6 +642,7 @@ export default function BookingsList() {
                 <th>Name</th>
                 <th>Contact</th>
                 <th>Shares</th>
+                <th>Payment</th>
                 <th>Cow(s)</th>
                 <th>Recorded by</th>
                 <th>Booked</th>
@@ -534,6 +657,13 @@ export default function BookingsList() {
                   <td data-label="Name">{b.name}</td>
                   <td data-label="Contact">{b.contact}</td>
                   <td data-label="Shares">{b.shares}</td>
+                  <td data-label="Payment">
+                    <span
+                      className={`payment-badge payment-badge--${b.paymentStatus || "pending"}`}
+                    >
+                      {paymentStatusLabel(b.paymentStatus || "pending")}
+                    </span>
+                  </td>
                   <td data-label="Cows">{formatCowNumbers(b)}</td>
                   <td data-label="Recorded by">{recordedByLabel(b)}</td>
                   <td data-label="Booked">{formatDate(b.created_at)}</td>

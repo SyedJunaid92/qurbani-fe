@@ -7,6 +7,7 @@ import {
   fetchAllocationOptions,
   fetchBooking,
   patchBooking,
+  patchSharePayment,
   updateBookingAllocationDetails
 } from '../api/client.js';
 
@@ -31,7 +32,8 @@ function buildShareRows(booking) {
       shareNumber: a.shareNumber,
       name: d?.name ?? '',
       contact: d?.contact ?? '',
-      address: d?.address ?? ''
+      address: d?.address ?? '',
+      paymentReceived: d?.paymentReceived === true
     };
   });
 }
@@ -98,6 +100,7 @@ export default function BookingDetail() {
   const [updatingCount, setUpdatingCount] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [paymentSavingIndex, setPaymentSavingIndex] = useState(null);
   const [error, setError] = useState(null);
   const [saveError, setSaveError] = useState(null);
 
@@ -219,7 +222,8 @@ export default function BookingDetail() {
       shareNumber: Number(r.shareNumber),
       name: r.name,
       contact: r.contact,
-      address: r.address
+      address: r.address,
+      paymentReceived: r.paymentReceived === true
     }));
     try {
       const updated = await updateBookingAllocationDetails(id, {
@@ -246,6 +250,29 @@ export default function BookingDetail() {
     } finally {
       setSaving(false);
     }
+  }
+
+  async function handleToggleSharePayment(index, nextPaid) {
+    setPaymentSavingIndex(index);
+    try {
+      const updated = await patchSharePayment(id, {
+        index,
+        paymentReceived: nextPaid
+      });
+      setBooking(updated);
+      setShareRows(buildShareRows(updated));
+      toast.success(nextPaid ? 'Payment marked received' : 'Payment marked pending');
+    } catch (err) {
+      toast.error(err.message || 'Could not update payment');
+    } finally {
+      setPaymentSavingIndex(null);
+    }
+  }
+
+  function paymentStatusLabel(s) {
+    if (s === 'paid') return 'Paid';
+    if (s === 'partial') return 'Partial';
+    return 'Pending';
   }
 
   if (loading) {
@@ -286,6 +313,14 @@ export default function BookingDetail() {
         <Link to="/">← All bookings</Link>
       </p>
       <h2 className="booking-detail__title">{booking.name}</h2>
+      <p className="booking-detail__payment-summary">
+        <strong>Payment status:</strong>{' '}
+        <span
+          className={`payment-badge payment-badge--${booking.paymentStatus || 'pending'}`}
+        >
+          {paymentStatusLabel(booking.paymentStatus || 'pending')}
+        </span>
+      </p>
       <p>
         <strong>Booking contact:</strong> {booking.contact}
       </p>
@@ -351,6 +386,10 @@ export default function BookingDetail() {
       {shareRows.length > 0 && (
         <form className="share-slots-form" onSubmit={handleSaveShares}>
           <h3 className="booking-detail__section-title">Details per share</h3>
+          <p className="muted booking-detail__payment-hint">
+            Confirm payment per share below. Saving slot details keeps each share’s payment flag
+            when the cow/share slot is unchanged.
+          </p>
           {saveError && <p className="error">{saveError}</p>}
           <div className="share-slots-list">
             {shareRows.map((row, index) => {
@@ -422,6 +461,30 @@ export default function BookingDetail() {
                         onChange={(e) => updateRow(index, 'address', e.target.value)}
                         autoComplete="street-address"
                       />
+                    </div>
+                    <div className="form-field form-field--full share-slot__payment">
+                      <span className="share-slot__payment-label">Payment</span>
+                      <div className="share-slot__payment-row">
+                        <span
+                          className={`payment-badge payment-badge--${row.paymentReceived ? 'paid' : 'pending'}`}
+                        >
+                          {row.paymentReceived ? 'Received' : 'Pending'}
+                        </span>
+                        <button
+                          type="button"
+                          className={`btn btn--small ${row.paymentReceived ? 'btn-secondary' : ''}`}
+                          disabled={paymentSavingIndex === index}
+                          onClick={() =>
+                            handleToggleSharePayment(index, !row.paymentReceived)
+                          }
+                        >
+                          {paymentSavingIndex === index
+                            ? 'Saving…'
+                            : row.paymentReceived
+                              ? 'Mark pending'
+                              : 'Confirm payment'}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </fieldset>
