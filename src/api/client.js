@@ -74,8 +74,28 @@ export async function loginRequest(email, password) {
   return data;
 }
 
-export function fetchBookings() {
-  return request('/bookings');
+/**
+ * @param {{ page?: number, limit?: number, name?: string, contact?: string, cows?: number[] }} params
+ */
+export function fetchBookings(params = {}) {
+  const q = new URLSearchParams();
+  const page = Number(params.page);
+  if (Number.isInteger(page) && page >= 1) q.set('page', String(page));
+  const limit = Number(params.limit);
+  if ([10, 20, 30, 50].includes(limit)) q.set('limit', String(limit));
+  if (typeof params.name === 'string' && params.name.trim()) q.set('name', params.name.trim());
+  if (typeof params.contact === 'string' && params.contact.trim()) {
+    q.set('contact', params.contact.trim());
+  }
+  if (Array.isArray(params.cows) && params.cows.length > 0) {
+    q.set('cows', [...new Set(params.cows.map(Number).filter((n) => Number.isInteger(n) && n >= 1))].join(','));
+  }
+  const qs = q.toString();
+  return request(`/bookings${qs ? `?${qs}` : ''}`);
+}
+
+export function fetchBookingCowNumbers() {
+  return request('/bookings/cow-numbers');
 }
 
 export function fetchBooking(id) {

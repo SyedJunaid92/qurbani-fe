@@ -1,13 +1,28 @@
-import { useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import toast from "react-hot-toast";
 import { Link } from "react-router-dom";
 import ConfirmModal from "../components/ConfirmModal.jsx";
-import { deleteBooking, fetchBookings } from "../api/client.js";
+import {
+  deleteBooking,
+  fetchBookingCowNumbers,
+  fetchBookings,
+} from "../api/client.js";
+import { useDebounce } from "../hooks/useDebounce.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import {
   digitsForWhatsApp,
   whatsAppDigitsHint,
 } from "../utils/whatsappPhone.js";
+
+const LIMIT_OPTIONS = [10, 20, 30, 50];
+const DEBOUNCE_MS = 350;
 
 function formatDate(iso) {
   if (!iso) return "—";
@@ -18,7 +33,6 @@ function formatDate(iso) {
   }
 }
 
-/** Distinct cow numbers for this booking (1-based), sorted */
 function formatCowNumbers(booking) {
   const segs = booking.allocations;
   if (!Array.isArray(segs) || segs.length === 0) return "—";
@@ -130,7 +144,6 @@ function toastBadPhone() {
   );
 }
 
-/** Opens installed WhatsApp (desktop / phone app). Avoids broken WhatsApp Web. */
 function openWhatsAppNative(booking) {
   const p = getWhatsAppPayload(booking);
   if (!p) {
@@ -147,7 +160,6 @@ function openWhatsAppNative(booking) {
   document.body.removeChild(a);
 }
 
-/** HTTPS chat link in a new tab (uses WhatsApp Web or mobile browser). */
 function openWhatsAppWeb(booking) {
   const p = getWhatsAppPayload(booking);
   if (!p) {
@@ -186,10 +198,112 @@ async function copyWhatsAppMessage(booking) {
   }
 }
 
+function CowMultiSelect({
+  options,
+  value,
+  onChange,
+  open,
+  onOpenChange,
+  containerRef,
+}) {
+  const toggle = (n) => {
+    const set = new Set(value);
+    if (set.has(n)) set.delete(n);
+    else set.add(n);
+    onChange([...set].sort((a, b) => a - b));
+  };
+
+  const summary =
+    value.length === 0
+      ? "All cows"
+      : value.length <= 2
+        ? value.map(String).join(", ")
+        : `${value.length} selected`;
+
+  return (
+    <div className="bookings-field bookings-field--cow" ref={containerRef}>
+      <label>Cow number</label>
+      <div className="cow-multi">
+        <button
+          type="button"
+          className={`cow-multi__trigger ${open ? "cow-multi__trigger--open" : ""}`}
+          aria-expanded={open}
+          aria-haspopup="listbox"
+          onClick={() => onOpenChange(!open)}
+        >
+          <span className="cow-multi__trigger-text">{summary}</span>
+          <span className="cow-multi__chev" aria-hidden>
+            ▾
+          </span>
+        </button>
+        {open && (
+          <div className="cow-multi__panel" role="listbox">
+            {options.length === 0 ? (
+              <p className="cow-multi__empty muted">No cow numbers in your data yet.</p>
+            ) : (
+              <>
+                <div className="cow-multi__actions">
+                  <button
+                    type="button"
+                    className="cow-multi__link"
+                    onClick={() => onChange([...options])}
+                  >
+                    Select all
+                  </button>
+                  <button
+                    type="button"
+                    className="cow-multi__link"
+                    onClick={() => onChange([])}
+                  >
+                    Clear
+                  </button>
+                </div>
+                <ul className="cow-multi__list">
+                  {options.map((n) => (
+                    <li key={n}>
+                      <label className="cow-multi__row">
+                        <input
+                          type="checkbox"
+                          checked={value.includes(n)}
+                          onChange={() => toggle(n)}
+                        />
+                        <span>Cow {n}</span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function BookingsList() {
   const { isAdmin } = useAuth();
   const [bookings, setBookings] = useState([]);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [nameInput, setNameInput] = useState("");
+  const [contactInput, setContactInput] = useState("");
+  const [selectedCows, setSelectedCows] = useState([]);
+  const [cowOptions, setCowOptions] = useState([]);
+  const [cowPopoverOpen, setCowPopoverOpen] = useState(false);
+  const cowWrapRef = useRef(null);
+
+  const debouncedName = useDebounce(nameInput, DEBOUNCE_MS);
+  const debouncedContact = useDebounce(contactInput, DEBOUNCE_MS);
+  const cowsKey = useMemo(
+    () => selectedCows.slice().sort((a, b) => a - b).join(","),
+    [selectedCows],
+  );
+
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [deleteModal, setDeleteModal] = useState(null);
@@ -197,34 +311,46 @@ export default function BookingsList() {
   const deleteModalBusy =
     Boolean(deleteModal) && deletingId === deleteModal._id;
 
-  async function executeListDelete() {
-    if (!deleteModal) return;
-    setDeletingId(deleteModal._id);
+  useLayoutEffect(() => {
+    setPage(1);
+  }, [debouncedName, debouncedContact, cowsKey]);
+
+  const loadBookings = useCallback(async () => {
+    setRefreshing(true);
+    setError(null);
     try {
-      await deleteBooking(deleteModal._id);
-      setBookings((prev) => prev.filter((x) => x._id !== deleteModal._id));
-      setDeleteModal(null);
-      toast.success("Booking deleted");
+      const res = await fetchBookings({
+        page,
+        limit,
+        name: debouncedName,
+        contact: debouncedContact,
+        cows: selectedCows,
+      });
+      setBookings(res.data ?? []);
+      setTotal(res.total ?? 0);
+      setTotalPages(res.totalPages ?? 1);
+      if (res.page != null && res.page !== page) setPage(res.page);
     } catch (e) {
-      toast.error(e.message || "Could not delete");
+      setError(e.message);
+      toast.error(e.message || "Could not load bookings");
     } finally {
-      setDeletingId(null);
+      setRefreshing(false);
+      setLoading(false);
     }
-  }
+  }, [page, limit, debouncedName, debouncedContact, selectedCows]);
+
+  useEffect(() => {
+    loadBookings();
+  }, [loadBookings]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const data = await fetchBookings();
-        if (!cancelled) setBookings(data);
-      } catch (e) {
-        if (!cancelled) {
-          setError(e.message);
-          toast.error(e.message || "Could not load bookings");
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
+        const nums = await fetchBookingCowNumbers();
+        if (!cancelled) setCowOptions(Array.isArray(nums) ? nums : []);
+      } catch {
+        if (!cancelled) setCowOptions([]);
       }
     })();
     return () => {
@@ -232,7 +358,40 @@ export default function BookingsList() {
     };
   }, []);
 
-  if (loading) {
+  useEffect(() => {
+    function onDocMouseDown(e) {
+      if (!cowPopoverOpen) return;
+      const el = cowWrapRef.current;
+      if (el && !el.contains(e.target)) setCowPopoverOpen(false);
+    }
+    document.addEventListener("mousedown", onDocMouseDown);
+    return () => document.removeEventListener("mousedown", onDocMouseDown);
+  }, [cowPopoverOpen]);
+
+  async function executeListDelete() {
+    if (!deleteModal) return;
+    setDeletingId(deleteModal._id);
+    try {
+      await deleteBooking(deleteModal._id);
+      setDeleteModal(null);
+      toast.success("Booking deleted");
+      await loadBookings();
+    } catch (e) {
+      toast.error(e.message || "Could not delete");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  const hasActiveFilters =
+    debouncedName.trim() !== "" ||
+    debouncedContact.trim() !== "" ||
+    selectedCows.length > 0;
+
+  const fromIdx = total === 0 ? 0 : (page - 1) * limit + 1;
+  const toIdx = total === 0 ? 0 : Math.min(page * limit, total);
+
+  if (loading && bookings.length === 0 && !error) {
     return (
       <div className="card">
         <p className="muted">Loading bookings…</p>
@@ -240,7 +399,7 @@ export default function BookingsList() {
     );
   }
 
-  if (error) {
+  if (error && bookings.length === 0) {
     return (
       <div className="card">
         <p className="error">{error}</p>
@@ -251,19 +410,8 @@ export default function BookingsList() {
     );
   }
 
-  if (bookings.length === 0) {
-    return (
-      <div className="card">
-        <p>No bookings yet.</p>
-        <Link to="/new" className="btn" style={{ marginTop: "1rem" }}>
-          Add first booking
-        </Link>
-      </div>
-    );
-  }
-
   return (
-    <div className="card">
+    <div className="card bookings-page">
       <ConfirmModal
         open={deleteModal != null}
         title="Delete this booking?"
@@ -280,87 +428,198 @@ export default function BookingsList() {
           This cannot be undone.
         </p>
       </ConfirmModal>
-      <p className="list-hint muted">
-        {isAdmin ? "Showing all bookings." : "Showing bookings you created."}
+
+      <div className="bookings-toolbar">
+        <div className="bookings-toolbar__filters">
+          <div className="bookings-field">
+            <label htmlFor="filter-name">Name</label>
+            <input
+              id="filter-name"
+              type="search"
+              className="bookings-input"
+              placeholder="Search by name…"
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              autoComplete="off"
+            />
+          </div>
+          <div className="bookings-field">
+            <label htmlFor="filter-contact">Contact</label>
+            <input
+              id="filter-contact"
+              type="search"
+              className="bookings-input"
+              placeholder="Search by phone / contact…"
+              value={contactInput}
+              onChange={(e) => setContactInput(e.target.value)}
+              autoComplete="off"
+            />
+          </div>
+          <CowMultiSelect
+            options={cowOptions}
+            value={selectedCows}
+            onChange={setSelectedCows}
+            open={cowPopoverOpen}
+            onOpenChange={setCowPopoverOpen}
+            containerRef={cowWrapRef}
+          />
+        </div>
+        <div className="bookings-toolbar__size">
+          <label htmlFor="page-size">Rows per page</label>
+          <select
+            id="page-size"
+            className="bookings-select"
+            value={String(limit)}
+            onChange={(e) => {
+              setLimit(Number(e.target.value));
+              setPage(1);
+            }}
+          >
+            {LIMIT_OPTIONS.map((n) => (
+              <option key={n} value={String(n)}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <p className="list-hint muted bookings-page__hint">
+        {isAdmin ? "All bookings." : "Your bookings."}
+        {refreshing && (
+          <span className="bookings-page__refreshing"> Updating…</span>
+        )}
       </p>
 
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Contact</th>
-              <th>Shares</th>
-              <th>Cow(s)</th>
-              <th>Recorded by</th>
-              <th>Booked</th>
-              {isAdmin && <th>WhatsApp</th>}
-              <th>Slots</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {bookings.map((b) => (
-              <tr key={b._id}>
-                <td data-label="Name">{b.name}</td>
-                <td data-label="Contact">{b.contact}</td>
-                <td data-label="Shares">{b.shares}</td>
-                <td data-label="Cows">{formatCowNumbers(b)}</td>
-                <td data-label="Recorded by">{recordedByLabel(b)}</td>
-                <td data-label="Booked">{formatDate(b.created_at)}</td>
-                {isAdmin && (
-                  <td data-label="WhatsApp">
-                    <div className="wa-actions">
+      {bookings.length === 0 ? (
+        <div className="bookings-empty">
+          {hasActiveFilters ? (
+            <>
+              <p>No bookings match your filters.</p>
+              <p className="muted">
+                Try adjusting name, contact, or cow filters — search updates as
+                you type.
+              </p>
+            </>
+          ) : (
+            <>
+              <p>No bookings yet.</p>
+              <Link to="/new" className="btn" style={{ marginTop: "1rem" }}>
+                Add first booking
+              </Link>
+            </>
+          )}
+        </div>
+      ) : (
+        <div
+          className={`table-wrap ${refreshing ? "table-wrap--refreshing" : ""}`}
+        >
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Contact</th>
+                <th>Shares</th>
+                <th>Cow(s)</th>
+                <th>Recorded by</th>
+                <th>Booked</th>
+                {isAdmin && <th>WhatsApp</th>}
+                <th>Slots</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {bookings.map((b) => (
+                <tr key={b._id}>
+                  <td data-label="Name">{b.name}</td>
+                  <td data-label="Contact">{b.contact}</td>
+                  <td data-label="Shares">{b.shares}</td>
+                  <td data-label="Cows">{formatCowNumbers(b)}</td>
+                  <td data-label="Recorded by">{recordedByLabel(b)}</td>
+                  <td data-label="Booked">{formatDate(b.created_at)}</td>
+                  {isAdmin && (
+                    <td data-label="WhatsApp">
+                      <div className="wa-actions">
+                        <button
+                          type="button"
+                          className="btn btn--wa"
+                          onClick={() => openWhatsAppNative(b)}
+                        >
+                          Open app
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn--small btn-secondary"
+                          onClick={() => openWhatsAppWeb(b)}
+                        >
+                          Web
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn--small btn-secondary"
+                          onClick={() => copyWhatsAppMessage(b)}
+                        >
+                          Copy message
+                        </button>
+                      </div>
+                    </td>
+                  )}
+                  <td data-label="Slots">
+                    <Link to={`/bookings/${b._id}`} className="table-action">
+                      Edit cow / share
+                    </Link>
+                  </td>
+                  <td data-label="Actions">
+                    <div className="table-row-actions">
+                      <Link to={`/bookings/${b._id}`} className="table-action">
+                        Details
+                      </Link>
                       <button
                         type="button"
-                        className="btn btn--wa"
-                        onClick={() => openWhatsAppNative(b)}
+                        className="btn btn--small btn--danger"
+                        disabled={deletingId === b._id}
+                        onClick={() =>
+                          setDeleteModal({ _id: b._id, name: b.name })
+                        }
                       >
-                        Open app
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn--small btn-secondary"
-                        onClick={() => openWhatsAppWeb(b)}
-                      >
-                        Web
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn--small btn-secondary"
-                        onClick={() => copyWhatsAppMessage(b)}
-                      >
-                        Copy message
+                        Delete
                       </button>
                     </div>
                   </td>
-                )}
-                <td data-label="Slots">
-                  <Link to={`/bookings/${b._id}`} className="table-action">
-                    Edit cow / share
-                  </Link>
-                </td>
-                <td data-label="Actions">
-                  <div className="table-row-actions">
-                    <Link to={`/bookings/${b._id}`} className="table-action">
-                      Details
-                    </Link>
-                    <button
-                      type="button"
-                      className="btn btn--small btn--danger"
-                      disabled={deletingId === b._id}
-                      onClick={() =>
-                        setDeleteModal({ _id: b._id, name: b.name })
-                      }
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div className="pagination-bar">
+        <p className="pagination-bar__info muted">
+          {total === 0
+            ? "0 results"
+            : `Showing ${fromIdx}–${toIdx} of ${total}`}
+        </p>
+        <div className="pagination-bar__nav">
+          <button
+            type="button"
+            className="btn btn--small btn-secondary"
+            disabled={page <= 1 || refreshing}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+          >
+            Previous
+          </button>
+          <span className="pagination-bar__page muted">
+            Page {page} / {totalPages}
+          </span>
+          <button
+            type="button"
+            className="btn btn--small btn-secondary"
+            disabled={page >= totalPages || refreshing}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+          >
+            Next
+          </button>
+        </div>
       </div>
     </div>
   );
