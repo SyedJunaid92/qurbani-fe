@@ -107,6 +107,43 @@ export function fetchBookingCowNumbers() {
   return request('/bookings/cow-numbers');
 }
 
+export async function downloadExportExcel() {
+  const token = getStoredToken();
+  const headers = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const res = await fetch(`${base}/bookings/export-data`, { headers });
+
+  if (res.status === 401 && token) {
+    clearSession();
+    window.location.assign('/login');
+    throw new Error('Session expired');
+  }
+  if (!res.ok) {
+    let msg = 'Export failed';
+    try {
+      const body = await res.json();
+      if (body?.error) msg = body.error;
+    } catch { /* ignore */ }
+    throw new Error(msg);
+  }
+
+  const blob = await res.blob();
+  const disposition = res.headers.get('Content-Disposition') || '';
+  const match = disposition.match(/filename="?([^"]+)"?/);
+  const fileName = match?.[1] || `${new Date().getFullYear()} Ijtamai Qurbani I-9-4.xlsx`;
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  return fileName;
+}
+
 export function fetchBooking(id) {
   return request(`/bookings/${id}`);
 }

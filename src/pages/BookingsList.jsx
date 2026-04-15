@@ -11,6 +11,7 @@ import { Link } from "react-router-dom";
 import ConfirmModal from "../components/ConfirmModal.jsx";
 import {
   deleteBooking,
+  downloadExportExcel,
   fetchBookingCowNumbers,
   fetchBookings,
 } from "../api/client.js";
@@ -408,6 +409,7 @@ export default function BookingsList() {
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [deleteModal, setDeleteModal] = useState(null);
@@ -490,6 +492,18 @@ export default function BookingsList() {
       toast.error(e.message || "Could not delete");
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  async function handleExportExcel() {
+    setExporting(true);
+    try {
+      await downloadExportExcel();
+      toast.success("Excel file downloaded");
+    } catch (err) {
+      toast.error(err.message || "Could not export data");
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -586,23 +600,33 @@ export default function BookingsList() {
             containerRef={paymentWrapRef}
           />
         </div>
-        <div className="bookings-toolbar__size">
-          <label htmlFor="page-size">Rows per page</label>
-          <select
-            id="page-size"
-            className="bookings-select"
-            value={String(limit)}
-            onChange={(e) => {
-              setLimit(Number(e.target.value));
-              setPage(1);
-            }}
+        <div className="bookings-toolbar__actions">
+          <div className="bookings-toolbar__size">
+            <label htmlFor="page-size">Rows per page</label>
+            <select
+              id="page-size"
+              className="bookings-select"
+              value={String(limit)}
+              onChange={(e) => {
+                setLimit(Number(e.target.value));
+                setPage(1);
+              }}
+            >
+              {LIMIT_OPTIONS.map((n) => (
+                <option key={n} value={String(n)}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button
+            type="button"
+            className="btn btn--small"
+            disabled={exporting}
+            onClick={handleExportExcel}
           >
-            {LIMIT_OPTIONS.map((n) => (
-              <option key={n} value={String(n)}>
-                {n}
-              </option>
-            ))}
-          </select>
+            {exporting ? "Exporting…" : "Export Excel"}
+          </button>
         </div>
       </div>
 
